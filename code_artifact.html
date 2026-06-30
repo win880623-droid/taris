@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四季美學 俄羅斯方塊 Neo Tetris Seasonal</title>
+    <!-- 引入 Tailwind CSS 與 FontAwesome 圖標 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rajdhani', 'Orbitron', sans-serif;
+            overflow-x: hidden;
+            transition: background 0.8s ease, color 0.5s ease;
+        }
+        .orbitron-text {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* 動態霓虹發光邊框 */
+        .neon-border {
+            transition: all 0.6s ease;
+        }
+        /* 邊框能量脈衝光效 */
+        @keyframes borderFlash {
+            0% { 
+                border-color: var(--theme-color-glow); 
+                box-shadow: 0 0 35px var(--theme-color-glow); 
+            }
+            100% { 
+                border-color: rgba(30, 41, 59, 0.9); 
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); 
+            }
+        }
+        .border-flash-active {
+            animation: borderFlash 0.6s ease-out;
+        }
+        /* 自訂滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020308;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--theme-color);
+            border-radius: 3px;
+        }
+        /* 全螢幕背景畫布 */
+        #bgCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body id="gameBody" class="min-h-screen text-slate-100 flex flex-col items-center justify-between p-2 sm:p-4 select-none">
+
+    <!-- 用於背景效果的 Canvas (靜態幾何光影) -->
+    <canvas id="bgCanvas"></canvas>
+
+    <!-- 頂部導覽列 -->
+    <header id="gameHeader" class="w-full max-w-4xl flex flex-col sm:flex-row justify-between items-center gap-3 py-3 px-4 bg-slate-950/70 backdrop-blur-md rounded-2xl border border-slate-800/80 shadow-lg mb-2 transition-all">
+        <div class="flex items-center gap-3">
+            <div id="logoBadge" class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg transition-all duration-500">
+                <i class="fa-solid fa-snowflake text-white text-xl animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="text-xl sm:text-2xl font-black tracking-widest bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-500 bg-clip-text text-transparent orbitron-text transition-all duration-500" id="gameTitleHeader">NEO TETRIS</h1>
+                <p class="text-[10px] text-cyan-400/80 tracking-widest orbitron-text" id="themeSubtitle">HYDRANGEA BLUE EDITION</p>
+            </div>
+        </div>
+        
+        <!-- 主題切換控制面板與按鈕 -->
+        <div class="flex items-center gap-3 flex-wrap justify-center">
+            <!-- 季節切換按鈕組 -->
+            <div id="seasonPanel" class="flex bg-slate-900/90 rounded-xl p-1 border border-slate-800 gap-1 transition-all">
+                <button id="btnPink" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-transparent text-rose-400/60 hover:text-rose-300" title="粉色櫻花">
+                    <span>🌸</span><span class="hidden md:inline">櫻花</span>
+                </button>
+                <button id="btnBlue" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" title="藍色繡球花">
+                    <span>🪻</span><span class="hidden md:inline">繡球</span>
+                </button>
+                <button id="btnGreen" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-transparent text-emerald-400/60 hover:text-emerald-300" title="綠色竹子">
+                    <span>🎋</span><span class="hidden md:inline">竹子</span>
+                </button>
+                <button id="btnOrange" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-transparent text-amber-500/60 hover:text-amber-400" title="橘色楓葉">
+                    <span>🍁</span><span class="hidden md:inline">楓葉</span>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+                <!-- 亮色/暗色切換按鈕 -->
+                <button id="modeToggleBtn" class="p-2 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-400/60 transition-all text-cyan-400" title="切換亮/暗色模式">
+                    <i id="modeIcon" class="fa-solid fa-moon text-sm"></i>
+                </button>
+                <!-- 音效開關 -->
+                <button id="soundToggleBtn" class="p-2 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-400/60 transition-all text-cyan-400" title="切換音效">
+                    <i id="soundIcon" class="fa-solid fa-volume-high text-sm"></i>
+                </button>
+                <!-- 重新開始 -->
+                <button id="resetBtn" class="p-2 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-400/60 transition-all text-cyan-400" title="重新開始">
+                    <i class="fa-solid fa-rotate-right text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 遊戲主體內容區 -->
+    <main class="w-full max-w-4xl flex flex-col md:flex-row items-center md:items-stretch justify-center gap-4 my-auto">
+        
+        <!-- 左側：儲存區 (Hold Block) & 統計資訊 -->
+        <section class="w-full md:w-48 flex flex-row md:flex-col justify-between md:justify-start gap-3">
+            <!-- 儲存方塊框 -->
+            <div id="holdFrame" class="flex-1 md:flex-none flex flex-col items-center p-3 bg-slate-950/90 rounded-2xl border border-slate-800 neon-border relative overflow-hidden group">
+                <div id="holdBar" class="absolute top-0 left-0 w-full h-1 bg-cyan-400 transition-all duration-500"></div>
+                <h2 class="text-xs sm:text-sm font-bold text-cyan-400 tracking-wider mb-2 orbitron-text transition-all duration-500" id="holdTitle">HOLD / 暫存 (C)</h2>
+                <!-- 預覽畫布 -->
+                <div class="bg-black/95 rounded-xl p-2 w-24 h-24 flex items-center justify-center border border-gray-900 shadow-inner relative cursor-pointer" id="holdContainer">
+                    <canvas id="holdCanvas" width="96" height="96" class="w-full h-full rounded"></canvas>
+                    <div id="holdEmptyText" class="absolute text-[10px] text-slate-600 font-bold orbitron-text">EMPTY</div>
+                </div>
+                <p id="holdHintText" class="text-[9px] text-slate-500 mt-2 text-center hidden md:block">可按 C 鍵或 Shift 鍵上方塊進行調換</p>
+            </div>
+
+            <!-- 數據統計 -->
+            <div id="statsFrame" class="flex-1 md:flex-none flex flex-row md:flex-col justify-around md:justify-start gap-2 p-3 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-xl transition-all">
+                <div class="text-center md:text-left md:mb-2">
+                    <p class="text-[10px] text-cyan-500/80 tracking-wider orbitron-text" id="lblScore">SCORE / 分數</p>
+                    <p id="scoreVal" class="text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text">000000</p>
+                </div>
+                <div class="text-center md:text-left md:mb-2">
+                    <p class="text-[10px] text-pink-400 tracking-wider orbitron-text" id="lblCombo">MAX COMBO / 最高連消</p>
+                    <p id="comboVal" class="text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text">0</p>
+                </div>
+                <div class="text-center md:text-left md:mb-2">
+                    <p class="text-[10px] text-indigo-400 tracking-wider orbitron-text" id="lblLevel">LEVEL / 等級</p>
+                    <p id="levelVal" class="text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text">1</p>
+                </div>
+                <div class="text-center md:text-left">
+                    <p class="text-[10px] text-blue-400 tracking-wider orbitron-text" id="lblLines">LINES / 消行</p>
+                    <p id="linesVal" class="text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text">0</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 中間：主遊戲盤面 -->
+        <section class="relative flex flex-col items-center justify-center">
+            <!-- 遊戲邊框 -->
+            <div id="gameContainer" class="p-1 bg-slate-950 rounded-2xl border-4 border-slate-800/90 shadow-[0_0_30px_rgba(0,168,255,0.15)] overflow-hidden relative transition-all duration-500">
+                
+                <!-- 極簡連擊狀態膠囊 -->
+                <div id="comboHUD" class="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-950/95 border border-cyan-500/60 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold text-cyan-400 tracking-wider shadow-[0_0_15px_rgba(6,182,212,0.4)] opacity-0 transform -translate-y-2 transition-all duration-300 pointer-events-none flex items-center gap-1.5 z-20">
+                    <span class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" id="comboDot"></span>
+                    <span>COMBO <span id="comboHUDCount" class="text-white font-black">2</span> <span class="text-cyan-500/40">|</span> <span id="comboHUDBonus" class="text-yellow-400 font-extrabold">+300</span></span>
+                </div>
+
+                <!-- 連消電光渲染遮罩層 -->
+                <div id="lightFlash" class="absolute inset-0 bg-gradient-to-t from-transparent via-cyan-500/10 to-cyan-400/25 mix-blend-screen pointer-events-none opacity-0 transition-opacity duration-300 z-10"></div>
+
+                <!-- 網格盤面：高度為 25 格，完美方塊比例 -->
+                <canvas id="gameCanvas" width="300" height="750" class="block bg-black max-w-[90vw] max-h-[70vh] sm:max-w-none rounded-lg" style="width: 280px; height: 700px;"></canvas>
+                
+                <!-- 暫停 / 準備開始 / 遊戲結束 面板 -->
+                <div id="overlay" class="absolute inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4 transition-all duration-300 z-30">
+                    <div id="overlayContent" class="space-y-4">
+                        <h2 id="overlayTitle" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 orbitron-text tracking-wider">NEO TETRIS</h2>
+                        <p id="overlayDesc" class="text-sm text-slate-400 max-w-xs mx-auto">選擇上方的四季主題與亮暗模式，點擊下方按鈕或按「空白鍵」開始挑戰！</p>
+                        <button id="startPlayBtn" class="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold tracking-widest rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-400/40 transition-all duration-200 transform hover:scale-105 active:scale-95 orbitron-text flex items-center justify-center gap-2 mx-auto">
+                            <i class="fa-solid fa-play"></i> START GAME
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 右側：下一個預計下落的方塊 (Next Block) & 遊戲說明 -->
+        <section class="w-full md:w-48 flex flex-row md:flex-col justify-between md:justify-start gap-3">
+            <!-- 下一個方塊框 -->
+            <div id="nextFrame" class="flex-1 md:flex-none flex flex-col items-center p-3 bg-slate-950/90 rounded-2xl border border-slate-800 neon-border relative overflow-hidden">
+                <div id="nextBar" class="absolute top-0 left-0 w-full h-1 bg-cyan-400 transition-all duration-500"></div>
+                <h2 class="text-xs sm:text-sm font-bold text-cyan-400 tracking-wider mb-2 orbitron-text transition-all duration-500" id="nextTitle">NEXT / 下一個</h2>
+                <!-- 預覽畫布 -->
+                <div class="bg-black/95 rounded-xl p-2 w-24 h-24 flex items-center justify-center border border-gray-900 shadow-inner" id="nextContainer">
+                    <canvas id="nextCanvas" width="96" height="96" class="w-full h-full rounded"></canvas>
+                </div>
+            </div>
+
+            <!-- 操作鍵盤指南 -->
+            <div id="controlsFrame" class="flex-1 md:flex-none p-3 bg-slate-950/80 rounded-2xl border border-slate-800/60 shadow-xl text-left hidden sm:block">
+                <h3 class="text-xs font-bold text-slate-400 tracking-wider mb-2.5 orbitron-text border-b border-slate-800 pb-1.5 flex items-center gap-1.5" id="controlsHeader">
+                    <i class="fa-regular fa-keyboard text-cyan-400"></i> CONTROLS / 控制
+                </h3>
+                <ul class="text-[11px] space-y-2 text-slate-300" id="controlsList">
+                    <li class="flex justify-between items-center"><span class="text-slate-500 font-bold">← →</span> <span>左右移動</span></li>
+                    <li class="flex justify-between items-center"><span class="text-slate-500 font-bold">↓</span> <span>加速下落 (Soft)</span></li>
+                    <li class="flex justify-between items-center"><span class="text-cyan-400 font-bold" id="ctrlSpace">Space</span> <span>直接落下 (Hard)</span></li>
+                    <li class="flex justify-between items-center"><span class="text-indigo-400 font-bold" id="ctrlUp">↑</span> <span>向右旋轉</span></li>
+                    <li class="flex justify-between items-center"><span class="text-purple-400 font-bold" id="ctrlShift">Shift</span> <span>向左旋轉</span></li>
+                    <li class="flex justify-between items-center"><span class="text-blue-400 font-bold" id="ctrlC">C</span> <span>暫存方塊 (Hold)</span></li>
+                    <li class="flex justify-between items-center"><span class="text-emerald-400 font-bold">L-Delay</span> <span class="text-[9px] text-right">落地1秒移動寬限</span></li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 行動裝置虛擬按鍵區 (下落鍵已置於方向鍵最下方，且寬度等寬) -->
+    <footer class="w-full max-w-lg mt-2 mb-2 px-2">
+        <div id="mobileKeyboard" class="bg-slate-900/40 backdrop-blur-md rounded-2xl p-2.5 border border-slate-800/80 flex flex-col gap-2 shadow-lg transition-all">
+            <!-- 上排：旋轉與特殊功能 -->
+            <div class="flex justify-between items-center gap-1.5">
+                <button id="touchHold" class="flex-1 py-3 bg-slate-800/70 hover:bg-slate-700 active:bg-blue-600/30 rounded-xl border border-slate-700 text-blue-400 font-bold text-xs flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform" title="暫存方塊">
+                    <i class="fa-solid fa-box-archive text-base"></i>
+                    <span class="text-[9px]">HOLD</span>
+                </button>
+                <button id="touchRotCCW" class="flex-1 py-3 bg-slate-800/70 hover:bg-slate-700 active:bg-purple-600/30 rounded-xl border border-slate-700 text-purple-400 font-bold text-xs flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform" title="向左旋轉">
+                    <i class="fa-solid fa-rotate-left text-base"></i>
+                    <span class="text-[9px]">L-ROT (Shift)</span>
+                </button>
+                <button id="touchRotCW" class="flex-1 py-3 bg-slate-800/70 hover:bg-slate-700 active:bg-indigo-600/30 rounded-xl border border-slate-700 text-indigo-400 font-bold text-xs flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform" title="向右旋轉">
+                    <i class="fa-solid fa-rotate-right text-base"></i>
+                    <span class="text-[9px]">R-ROT (↑)</span>
+                </button>
+            </div>
+            <!-- 中排：方向操作與加速 -->
+            <div class="flex justify-between gap-1.5">
+                <button id="touchLeft" class="flex-1 py-3.5 bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500/20 rounded-xl border border-slate-700 text-white flex items-center justify-center active:scale-95 transition-transform" title="向左移動">
+                    <i class="fa-solid fa-arrow-left text-lg"></i>
+                </button>
+                <button id="touchDown" class="flex-1 py-3.5 bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500/20 rounded-xl border border-slate-700 text-white flex items-center justify-center active:scale-95 transition-transform" title="加速下落">
+                    <i class="fa-solid fa-arrow-down text-lg"></i>
+                </button>
+                <button id="touchRight" class="flex-1 py-3.5 bg-slate-800/80 hover:bg-slate-700 active:bg-cyan-500/20 rounded-xl border border-slate-700 text-white flex items-center justify-center active:scale-95 transition-transform" title="向右移動">
+                    <i class="fa-solid fa-arrow-right text-lg"></i>
+                </button>
+            </div>
+            <!-- 下排：直接落下 (Hard Drop) 放在方向鍵正下方且等寬 -->
+            <div class="w-full">
+                <button id="touchHardDrop" class="w-full py-3 bg-cyan-600/30 hover:bg-cyan-600/40 active:bg-cyan-500 text-cyan-300 active:text-slate-950 rounded-xl border border-cyan-500/50 font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform" title="直接落下">
+                    <i class="fa-solid fa-angles-down text-base"></i>
+                    <span>直接落下 (HARD DROP - Space)</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 遊戲邏輯與主題設定腳本 -->
+    <script>
+        // --- Web Audio 復古音效合成系統 ---
+        class RetroAudio {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playMove() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playRotate() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(450, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playDrop() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playLineClear(linesCount) {
+                if (!this.enabled) return;
+                this.init();
+                const baseFreq = linesCount >= 4 ? 400 : 300;
+                const duration = 0.35;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                
+                osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(baseFreq * 1.25, this.ctx.currentTime + 0.08);
+                osc.frequency.setValueAtTime(baseFreq * 1.5, this.ctx.currentTime + 0.16);
+                osc.frequency.setValueAtTime(baseFreq * 2.0, this.ctx.currentTime + 0.24);
+
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            playComboSound(combo) {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const baseFreq = 261.63; // C4
+                const freq = baseFreq * Math.pow(1.122, combo + 2);
+                
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc1.type = 'square';
+                osc2.type = 'triangle';
+                osc1.frequency.setValueAtTime(freq, now);
+                osc2.frequency.setValueAtTime(freq * 1.5, now);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc1.start();
+                osc2.start();
+                osc1.stop(now + 0.3);
+                osc2.stop(now + 0.3);
+            }
+
+            playGameOver() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const notes = [200, 150, 120, 90];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+                    gain.gain.setValueAtTime(0.18, now + idx * 0.15);
+                    gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.15 + 0.14);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.15);
+                    osc.stop(now + idx * 0.15 + 0.14);
+                });
+            }
+
+            playLevelUp() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const notes = [261.6, 329.6, 392.0, 523.3]; // C Major Chord
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    gain.gain.setValueAtTime(0.15, now + idx * 0.1);
+                    gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.1 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.1);
+                    osc.stop(now + idx * 0.1 + 0.2);
+                });
+            }
+        }
+
+        const audio = new RetroAudio();
+
+        // --- Core Variables and Grid setup... ---
+        const COLS = 10;
+        const ROWS = 25; // 高度為 25 格
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const holdCanvas = document.getElementById('holdCanvas');
+        const holdCtx = holdCanvas.getContext('2d');
+        const nextCanvas = document.getElementById('nextCanvas');
+        const nextCtx = nextCanvas.getContext('2d');
+        const bgCanvas = document.getElementById('bgCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+
+        // 是否為亮色模式
+        let isLightMode = false;
+
+        // --- Multi-seasonal color mappings ---
+        const THEMES = {
+            pink: {
+                key: 'pink',
+                name: '粉色櫻花',
+                subtitle: 'CHERRY BLOSSOM SAKURA',
+                themeColorHex: '#f43f5e',
+                borderGlow: 'rgba(244, 63, 94, 0.4)',
+                dark: {
+                    bodyBg: 'radial-gradient(circle at center, #260c1c 0%, #080206 100%)',
+                    canvasBg: '#000000',
+                    gridLineColor: '#222222',
+                },
+                light: {
+                    bodyBg: 'radial-gradient(circle at center, #fff0f5 0%, #ffd1dc 100%)',
+                    canvasBg: '#ffffff',
+                    gridLineColor: '#e2e8f0',
+                },
+                blockColors: {
+                    'I': { color: '#ffb3c6', glow: 'rgba(255, 179, 198, 0.8)' },
+                    'O': { color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.8)' },
+                    'T': { color: '#db2777', glow: 'rgba(219, 39, 119, 0.8)' },
+                    'S': { color: '#fda4af', glow: 'rgba(253, 164, 175, 0.8)' },
+                    'Z': { color: '#9f1239', glow: 'rgba(159, 18, 57, 0.8)' },
+                    'J': { color: '#fb7185', glow: 'rgba(251, 113, 133, 0.8)' },
+                    'L': { color: '#f472b6', glow: 'rgba(244, 114, 182, 0.8)' }
+                }
+            },
+            blue: {
+                key: 'blue',
+                name: '藍色繡球花',
+                subtitle: 'HYDRANGEA BLUE EDITION',
+                themeColorHex: '#06b6d4',
+                borderGlow: 'rgba(6, 182, 212, 0.4)',
+                dark: {
+                    bodyBg: 'radial-gradient(circle at center, #050b1a 0%, #010205 100%)',
+                    canvasBg: '#000000',
+                    gridLineColor: '#222222',
+                },
+                light: {
+                    bodyBg: 'radial-gradient(circle at center, #f0f8ff 0%, #cbd5e1 100%)',
+                    canvasBg: '#ffffff',
+                    gridLineColor: '#e2e8f0',
+                },
+                blockColors: {
+                    'I': { color: '#00c8ff', glow: 'rgba(0, 200, 255, 0.8)' },
+                    'O': { color: '#0096ff', glow: 'rgba(0, 150, 255, 0.8)' },
+                    'T': { color: '#506eff', glow: 'rgba(80, 110, 255, 0.8)' },
+                    'S': { color: '#0078ff', glow: 'rgba(0, 120, 255, 0.8)' },
+                    'Z': { color: '#6432ff', glow: 'rgba(100, 50, 255, 0.8)' },
+                    'J': { color: '#00dbde', glow: 'rgba(0, 219, 222, 0.8)' },
+                    'L': { color: '#32a0ff', glow: 'rgba(50, 160, 255, 0.8)' }
+                }
+            },
+            green: {
+                key: 'green',
+                name: '綠色竹子',
+                subtitle: 'BAMBOO EMERALD FOREST',
+                themeColorHex: '#10b981',
+                borderGlow: 'rgba(16, 185, 129, 0.4)',
+                dark: {
+                    bodyBg: 'radial-gradient(circle at center, #03140a 0%, #010402 100%)',
+                    canvasBg: '#000000',
+                    gridLineColor: '#222222',
+                },
+                light: {
+                    bodyBg: 'radial-gradient(circle at center, #f0fff0 0%, #c6f6d5 100%)',
+                    canvasBg: '#ffffff',
+                    gridLineColor: '#e2e8f0',
+                },
+                blockColors: {
+                    'I': { color: '#6ee7b7', glow: 'rgba(110, 231, 183, 0.8)' },
+                    'O': { color: '#10b981', glow: 'rgba(16, 185, 129, 0.8)' },
+                    'T': { color: '#047857', glow: 'rgba(4, 120, 87, 0.8)' },
+                    'S': { color: '#34d399', glow: 'rgba(52, 211, 153, 0.8)' },
+                    'Z': { color: '#065f46', glow: 'rgba(6, 95, 70, 0.8)' },
+                    'J': { color: '#a7f3d0', glow: 'rgba(167, 243, 208, 0.8)' },
+                    'L': { color: '#059669', glow: 'rgba(5, 150, 105, 0.8)' }
+                }
+            },
+            orange: {
+                key: 'orange',
+                name: '橘色楓葉',
+                subtitle: 'AUTUMN MAPLE GOLD',
+                themeColorHex: '#f59e0b',
+                borderGlow: 'rgba(245, 158, 11, 0.4)',
+                dark: {
+                    bodyBg: 'radial-gradient(circle at center, #1f0f05 0%, #080301 100%)',
+                    canvasBg: '#000000',
+                    gridLineColor: '#222222',
+                },
+                light: {
+                    bodyBg: 'radial-gradient(circle at center, #fffaf0 0%, #fbd38d 100%)',
+                    canvasBg: '#ffffff',
+                    gridLineColor: '#e2e8f0',
+                },
+                blockColors: {
+                    'I': { color: '#fb923c', glow: 'rgba(251, 146, 60, 0.8)' },
+                    'O': { color: '#f97316', glow: 'rgba(249, 115, 22, 0.8)' },
+                    'T': { color: '#c2410c', glow: 'rgba(194, 65, 12, 0.8)' },
+                    'S': { color: '#fdbabc', glow: 'rgba(253, 186, 116, 0.8)' },
+                    'Z': { color: '#9a3412', glow: 'rgba(154, 52, 18, 0.8)' },
+                    'J': { color: '#ea580c', glow: 'rgba(234, 88, 12, 0.8)' },
+                    'L': { color: '#fcd34d', glow: 'rgba(252, 211, 77, 0.8)' }
+                }
+            }
+        };
+
+        // 預設採用藍色繡球花主題
+        let currentTheme = THEMES.blue;
+
+        // 方塊型態矩陣
+        const SHAPES = {
+            'I': { matrix: [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]] },
+            'O': { matrix: [[1, 1], [1, 1]] },
+            'T': { matrix: [[0, 1, 0], [1, 1, 1], [0, 0, 0]] },
+            'S': { matrix: [[0, 1, 1], [1, 1, 0], [0, 0, 0]] },
+            'Z': { matrix: [[1, 1, 0], [0, 1, 1], [0, 0, 0]] },
+            'J': { matrix: [[1, 0, 0], [1, 1, 1], [0, 0, 0]] },
+            'L': { matrix: [[0, 0, 1], [1, 1, 1], [0, 0, 0]] }
+        };
+
+        const SHAPE_KEYS = Object.keys(SHAPES);
+
+        let grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        let score = 0;
+        let level = 1;
+        let lines = 0;
+        let comboCount = 0;
+        let maxCombo = 0;
+        let gameOver = false;
+        let isPaused = false;
+        let gameStarted = false;
+
+        let currentPiece = null;
+        let nextPiece = null;
+        let holdPiece = null;
+        let hasHeld = false;
+
+        let dropCounter = 0;
+        let lastTime = 0;
+        let dropInterval = 1000;
+
+        let particles = [];
+
+        // 落地防死移動寬限設定
+        let lockDelayAccumulator = 0;
+        const LOCK_DELAY_LIMIT = 1000; // 1秒寬限
+        let lockResetCount = 0;
+        const MAX_LOCK_RESETS = 15;
+
+        // --- STREAMING_CHUNK: Background and visual grid drawing... ---
+        // 繪製非飄落、純粹高科技幾何氣氛之背景
+        function drawBackground() {
+            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+            const themeHex = currentTheme.themeColorHex;
+            const isLight = isLightMode;
+            
+            // 建立環境霓虹光暈
+            const grad = bgCtx.createRadialGradient(
+                bgCanvas.width / 2, bgCanvas.height / 2, 10,
+                bgCanvas.width / 2, bgCanvas.height / 2, Math.max(bgCanvas.width, bgCanvas.height) * 0.8
+            );
+            
+            if (isLight) {
+                grad.addColorStop(0, themeHex + '18'); 
+                grad.addColorStop(1, '#ffffff');
+            } else {
+                grad.addColorStop(0, themeHex + '08'); 
+                grad.addColorStop(1, '#020308');
+            }
+            bgCtx.fillStyle = grad;
+            bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+            
+            // 繪製極簡、不晃動的高對比網格
+            bgCtx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.025)' : 'rgba(255, 255, 255, 0.02)';
+            bgCtx.lineWidth = 1;
+            const gridSpacing = 60;
+            for (let x = 0; x < bgCanvas.width; x += gridSpacing) {
+                bgCtx.beginPath();
+                bgCtx.moveTo(x, 0);
+                bgCtx.lineTo(x, bgCanvas.height);
+                bgCtx.stroke();
+            }
+            for (let y = 0; y < bgCanvas.height; y += gridSpacing) {
+                bgCtx.beginPath();
+                bgCtx.moveTo(0, y);
+                bgCtx.lineTo(bgCanvas.width, y);
+                bgCtx.stroke();
+            }
+        }
+
+        function resizeBgCanvas() {
+            bgCanvas.width = window.innerWidth;
+            bgCanvas.height = window.innerHeight;
+            drawBackground();
+        }
+        window.addEventListener('resize', resizeBgCanvas);
+        resizeBgCanvas();
+
+        class Piece {
+            constructor(type, matrix = null) {
+                this.type = type;
+                this.matrix = matrix || SHAPES[type].matrix.map(row => [...row]);
+                this.x = Math.floor((COLS - this.matrix[0].length) / 2);
+                this.y = this.type === 'I' ? -1 : 0;
+            }
+
+            get color() {
+                return currentTheme.blockColors[this.type].color;
+            }
+
+            get glow() {
+                return currentTheme.blockColors[this.type].glow;
+            }
+
+            clone() {
+                const newPiece = new Piece(this.type, this.matrix.map(row => [...row]));
+                newPiece.x = this.x;
+                newPiece.y = this.y;
+                return newPiece;
+            }
+        }
+
+        function getRandomPiece() {
+            const randIndex = Math.floor(Math.random() * SHAPE_KEYS.length);
+            return new Piece(SHAPE_KEYS[randIndex]);
+        }
+
+        // 電漿粒子效果 (消行用)
+        class Particle {
+            constructor(x, y, color, isElectric = false) {
+                this.x = x;
+                this.y = y;
+                this.isElectric = isElectric;
+                this.vx = (Math.random() - 0.5) * (isElectric ? 14 : 7);
+                this.vy = (Math.random() - 0.5) * (isElectric ? 14 : 7);
+                this.size = Math.random() * (isElectric ? 5 : 3.5) + 1.5;
+                this.alpha = 1;
+                this.color = color;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.isElectric ? 0.055 : 0.035;
+            }
+
+            draw(gCtx) {
+                gCtx.save();
+                gCtx.globalAlpha = this.alpha;
+                gCtx.fillStyle = this.color;
+                gCtx.shadowBlur = this.isElectric ? 12 : 8;
+                gCtx.shadowColor = this.color;
+                gCtx.beginPath();
+                gCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                gCtx.fill();
+                gCtx.restore();
+            }
+        }
+
+        function collide(board, piece) {
+            const m = piece.matrix;
+            for (let r = 0; r < m.length; r++) {
+                for (let c = 0; c < m[r].length; c++) {
+                    if (m[r][c] !== 0) {
+                        const nextX = piece.x + c;
+                        const nextY = piece.y + r;
+                        
+                        if (nextX < 0 || nextX >= COLS || nextY >= ROWS) {
+                            return true;
+                        }
+                        if (nextY >= 0 && board[nextY][nextX] !== 0) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function rotateMatrix(matrix, dir = 1) {
+            const n = matrix.length;
+            const temp = Array.from({ length: n }, () => Array(n).fill(0));
+            
+            for (let r = 0; r < n; r++) {
+                for (let c = 0; c < n; c++) {
+                    temp[c][r] = matrix[r][c];
+                }
+            }
+
+            if (dir > 0) {
+                return temp.map(row => row.reverse());
+            } else {
+                return temp.reverse();
+            }
+        }
+
+        function playerRotate(dir = 1) {
+            if (!gameStarted || gameOver || isPaused || !currentPiece) return;
+
+            const originalMatrix = currentPiece.matrix;
+            currentPiece.matrix = rotateMatrix(currentPiece.matrix, dir);
+            
+            const kicks = [0, -1, 1, -2, 2];
+            let success = false;
+            
+            for (let i = 0; i < kicks.length; i++) {
+                currentPiece.x += kicks[i];
+                if (!collide(grid, currentPiece)) {
+                    success = true;
+                    audio.playRotate();
+                    
+                    if (collide(grid, { ...currentPiece, y: currentPiece.y + 1 }) && lockResetCount < MAX_LOCK_RESETS) {
+                        lockDelayAccumulator = 0;
+                        lockResetCount++;
+                    }
+                    break;
+                }
+                currentPiece.x -= kicks[i];
+            }
+
+            if (!success) {
+                currentPiece.matrix = originalMatrix;
+            }
+        }
+
+        function playerMove(dir) {
+            if (!gameStarted || gameOver || isPaused || !currentPiece) return;
+            currentPiece.x += dir;
+            if (collide(grid, currentPiece)) {
+                currentPiece.x -= dir;
+            } else {
+                audio.playMove();
+                
+                if (collide(grid, { ...currentPiece, y: currentPiece.y + 1 }) && lockResetCount < MAX_LOCK_RESETS) {
+                    lockDelayAccumulator = 0;
+                    lockResetCount++;
+                }
+            }
+        }
+
+        function playerDrop() {
+            if (!gameStarted || gameOver || isPaused || !currentPiece) return;
+            currentPiece.y++;
+            if (collide(grid, currentPiece)) {
+                currentPiece.y--;
+            }
+            dropCounter = 0;
+        }
+
+        function playerHardDrop() {
+            if (!gameStarted || gameOver || isPaused || !currentPiece) return;
+            let count = 0;
+            while (!collide(grid, currentPiece)) {
+                currentPiece.y++;
+                count++;
+            }
+            currentPiece.y--;
+            score += count * 2;
+            
+            lockPiece();
+        }
+
+        function lockPiece() {
+            lockDelayAccumulator = 0;
+            lockResetCount = 0;
+            merge(grid, currentPiece);
+            clearLines();
+            spawnNext();
+            audio.playDrop();
+            updateUI();
+        }
+
+        function merge(board, piece) {
+            const m = piece.matrix;
+            for (let r = 0; r < m.length; r++) {
+                for (let c = 0; c < m[r].length; c++) {
+                    if (m[r][c] !== 0) {
+                        const targetY = piece.y + r;
+                        const targetX = piece.x + c;
+                        if (targetY >= 0) {
+                            board[targetY][targetX] = piece.type;
+                        } else {
+                            triggerGameOver();
+                        }
+                    }
+                }
+            }
+        }
+
+        function playerHold() {
+            if (!gameStarted || gameOver || isPaused || !currentPiece || hasHeld) return;
+
+            audio.playRotate();
+            lockDelayAccumulator = 0;
+            lockResetCount = 0;
+            
+            if (holdPiece === null) {
+                holdPiece = new Piece(currentPiece.type);
+                currentPiece = nextPiece;
+                nextPiece = getRandomPiece();
+            } else {
+                const temp = holdPiece;
+                holdPiece = new Piece(currentPiece.type);
+                currentPiece = temp;
+                
+                currentPiece.x = Math.floor((COLS - currentPiece.matrix[0].length) / 2);
+                currentPiece.y = currentPiece.type === 'I' ? -1 : 0;
+            }
+            hasHeld = true;
+            document.getElementById('holdEmptyText').style.display = 'none';
+            drawHold();
+            drawNext();
+        }
+
+        function spawnNext() {
+            currentPiece = nextPiece;
+            nextPiece = getRandomPiece();
+            hasHeld = false;
+            lockDelayAccumulator = 0;
+            lockResetCount = 0;
+
+            if (collide(grid, currentPiece)) {
+                triggerGameOver();
+            }
+            
+            drawNext();
+        }
+
+        function clearLines() {
+            let linesClearedThisTurn = 0;
+            
+            for (let r = ROWS - 1; r >= 0; r--) {
+                let isRowFull = true;
+                for (let c = 0; c < COLS; c++) {
+                    if (grid[r][c] === 0) {
+                        isRowFull = false;
+                        break;
+                    }
+                }
+
+                if (isRowFull) {
+                    createLineParticles(r);
+                    grid.splice(r, 1);
+                    grid.unshift(Array(COLS).fill(0));
+                    linesClearedThisTurn++;
+                    r++;
+                }
+            }
+
+            if (linesClearedThisTurn > 0) {
+                comboCount++;
+                if (comboCount > maxCombo) {
+                    maxCombo = comboCount;
+                }
+
+                lines += linesClearedThisTurn;
+                
+                const lineScores = [0, 100, 300, 500, 800];
+                let turnScore = (lineScores[linesClearedThisTurn] || 800) * level;
+
+                let comboBonus = 0;
+                if (comboCount >= 2) {
+                    comboBonus = (comboCount - 1) * 150 * level;
+                    turnScore += comboBonus;
+                    triggerComboEffects(comboCount, comboBonus);
+                } else {
+                    audio.playLineClear(linesClearedThisTurn);
+                }
+
+                score += turnScore;
+
+                const newLevel = Math.floor(lines / 10) + 1;
+                if (newLevel > level) {
+                    level = newLevel;
+                    audio.playLevelUp();
+                    dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+                }
+
+                updateUI();
+            } else {
+                comboCount = 0;
+            }
+        }
+
+        function triggerComboEffects(combo, bonus) {
+            audio.playComboSound(combo);
+
+            const hud = document.getElementById('comboHUD');
+            const hudCount = document.getElementById('comboHUDCount');
+            const hudBonus = document.getElementById('comboHUDBonus');
+
+            hudCount.innerText = combo;
+            hudBonus.innerText = `+${bonus}`;
+
+            hud.classList.remove('opacity-0', '-translate-y-2');
+            hud.classList.add('opacity-100', 'translate-y-0');
+
+            if (window.comboHUDTimeout) clearTimeout(window.comboHUDTimeout);
+            window.comboHUDTimeout = setTimeout(() => {
+                hud.classList.remove('opacity-100', 'translate-y-0');
+                hud.classList.add('opacity-0', '-translate-y-2');
+            }, 1500);
+
+            const flash = document.getElementById('lightFlash');
+            flash.style.transition = 'none';
+            flash.style.opacity = '1';
+            void flash.offsetHeight; 
+            flash.style.transition = 'opacity 0.6s ease-out';
+            flash.style.opacity = '0';
+
+            const container = document.getElementById('gameContainer');
+            container.classList.remove('border-flash-active');
+            void container.offsetHeight; 
+            container.classList.add('border-flash-active');
+
+            for (let i = 0; i < combo * 6; i++) {
+                const rx = Math.random() * canvas.width;
+                const ry = Math.random() * (canvas.height / 3); 
+                const color = currentTheme.themeColorHex;
+                particles.push(new Particle(rx, ry, color, true));
+            }
+        }
+
+        function createLineParticles(rowIdx) {
+            const canvasWidth = canvas.width;
+            const rowHeight = canvas.height / ROWS;
+            const yPos = rowIdx * rowHeight + rowHeight / 2;
+
+            for (let c = 0; c < COLS; c++) {
+                const xPos = c * (canvasWidth / COLS) + (canvasWidth / COLS) / 2;
+                const pieceType = grid[rowIdx][c];
+                const cellColor = (pieceType && currentTheme.blockColors[pieceType]) ? currentTheme.blockColors[pieceType].color : currentTheme.themeColorHex;
+                for (let i = 0; i < 4; i++) {
+                    particles.push(new Particle(xPos, yPos, cellColor));
+                }
+            }
+        }
+
+        // --- STREAMING_CHUNK: High-fidelity seasonal pattern drawing... ---
+        function draw() {
+            // 根據亮/暗模式選擇畫布背景色
+            const themeConfig = isLightMode ? currentTheme.light : currentTheme.dark;
+            ctx.fillStyle = themeConfig.canvasBg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const cellW = canvas.width / COLS;
+            const cellH = canvas.height / ROWS;
+
+            // 根據亮暗模式選擇幾何格線顏色
+            ctx.strokeStyle = themeConfig.gridLineColor; 
+            ctx.lineWidth = 1;
+            for (let c = 1; c < COLS; c++) {
+                ctx.beginPath();
+                ctx.moveTo(c * cellW, 0);
+                ctx.lineTo(c * cellW, canvas.height);
+                ctx.stroke();
+            }
+            for (let r = 1; r < ROWS; r++) {
+                ctx.beginPath();
+                ctx.moveTo(0, r * cellH);
+                ctx.lineTo(canvas.width, r * cellH);
+                ctx.stroke();
+            }
+
+            // 繪製固定的方塊
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const type = grid[r][c];
+                    if (type !== 0 && currentTheme.blockColors[type]) {
+                        const color = currentTheme.blockColors[type].color;
+                        const glow = currentTheme.blockColors[type].glow;
+                        drawBlock(ctx, c, r, cellW, cellH, color, glow, true);
+                    }
+                }
+            }
+
+            // 繪製移動中與預覽虛影
+            if (currentPiece) {
+                const ghost = currentPiece.clone();
+                while (!collide(grid, ghost)) {
+                    ghost.y++;
+                }
+                ghost.y--;
+                if (ghost.y !== currentPiece.y) {
+                    drawGhost(ctx, ghost, cellW, cellH);
+                }
+
+                const m = currentPiece.matrix;
+                for (let r = 0; r < m.length; r++) {
+                    for (let c = 0; c < m[r].length; c++) {
+                        if (m[r][c] !== 0) {
+                            drawBlock(ctx, currentPiece.x + c, currentPiece.y + r, cellW, cellH, currentPiece.color, currentPiece.glow, true);
+                        }
+                    }
+                }
+            }
+
+            // 繪製粒子
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.update();
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    p.draw(ctx);
+                }
+            }
+        }
+
+        // 核心更新：回歸乾淨、高飽和度的經典高對比晶瑩方塊設計，移除繁雜細緻的花葉圖案
+        function drawBlock(targetCtx, x, y, w, h, color, glowColor, useGridCoords = true) {
+            if (useGridCoords && y < 0) return;
+
+            targetCtx.save();
+            targetCtx.shadowBlur = isLightMode ? 3 : 8;
+            targetCtx.shadowColor = glowColor;
+
+            const px = useGridCoords ? (x * w + 1) : x;
+            const py = useGridCoords ? (y * h + 1) : y;
+            const pw = w - 2;
+            const ph = h - 2;
+            const r = 5; // 圓角半徑
+
+            // 1. 繪製方塊本體與高飽和度色彩
+            targetCtx.fillStyle = color;
+            targetCtx.beginPath();
+            if (targetCtx.roundRect) {
+                targetCtx.roundRect(px, py, pw, ph, r);
+            } else {
+                targetCtx.rect(px, py, pw, ph);
+            }
+            targetCtx.fill();
+
+            // 2. 增加高對比亮部高光玻璃質感，維持簡約現代感
+            targetCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            targetCtx.beginPath();
+            if (targetCtx.roundRect) {
+                targetCtx.roundRect(px + 2, py + 2, pw - 4, ph * 0.35, [r - 1, r - 1, 0, 0]);
+            } else {
+                targetCtx.rect(px + 2, py + 2, pw - 4, ph * 0.35);
+            }
+            targetCtx.fill();
+
+            // 3. 方塊精緻外框線
+            targetCtx.shadowBlur = 0;
+            targetCtx.strokeStyle = isLightMode ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.3)';
+            targetCtx.lineWidth = 1.5;
+            targetCtx.stroke();
+
+            targetCtx.restore();
+        }
+
+        function drawGhost(targetCtx, ghostPiece, w, h) {
+            const m = ghostPiece.matrix;
+            targetCtx.save();
+            targetCtx.strokeStyle = isLightMode ? (currentTheme.themeColorHex + '88') : (currentTheme.themeColorHex + '55');
+            targetCtx.lineWidth = 2;
+            targetCtx.setLineDash([4, 4]);
+
+            for (let r = 0; r < m.length; r++) {
+                for (let c = 0; c < m[r].length; c++) {
+                    if (m[r][c] !== 0) {
+                        const py = (ghostPiece.y + r) * h;
+                        if (py >= 0) {
+                            targetCtx.strokeRect((ghostPiece.x + c) * w + 2, py + 2, w - 4, h - 4);
+                        }
+                    }
+                }
+            }
+            targetCtx.restore();
+        }
+
+        function drawHold() {
+            holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+            if (!holdPiece) return;
+
+            const m = holdPiece.matrix;
+            const cellSize = 18;
+            const offsetX = (holdCanvas.width - m[0].length * cellSize) / 2;
+            const offsetY = (holdCanvas.height - m.length * cellSize) / 2;
+
+            for (let r = 0; r < m.length; r++) {
+                for (let c = 0; c < m[r].length; c++) {
+                    if (m[r][c] !== 0) {
+                        const color = currentTheme.blockColors[holdPiece.type].color;
+                        const glow = currentTheme.blockColors[holdPiece.type].glow;
+                        drawBlock(holdCtx, offsetX + c * cellSize, offsetY + r * cellSize, cellSize, cellSize, color, glow, false);
+                    }
+                }
+            }
+        }
+
+        function drawNext() {
+            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            if (!nextPiece) return;
+
+            const m = nextPiece.matrix;
+            const cellSize = 18;
+            const offsetX = (nextCanvas.width - m[0].length * cellSize) / 2;
+            const offsetY = (nextCanvas.height - m.length * cellSize) / 2;
+
+            for (let r = 0; r < m.length; r++) {
+                for (let c = 0; c < m[r].length; c++) {
+                    if (m[r][c] !== 0) {
+                        const color = currentTheme.blockColors[nextPiece.type].color;
+                        const glow = currentTheme.blockColors[nextPiece.type].glow;
+                        drawBlock(nextCtx, offsetX + c * cellSize, offsetY + r * cellSize, cellSize, cellSize, color, glow, false);
+                    }
+                }
+            }
+        }
+
+        // --- STREAMING_CHUNK: Gameloop and theme switcher... ---
+        function gameLoop(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            // 背景光影繪製
+            drawBackground();
+
+            if (gameStarted && !gameOver && !isPaused) {
+                const isTouchingBottom = collide(grid, {
+                    x: currentPiece.x,
+                    y: currentPiece.y + 1,
+                    matrix: currentPiece.matrix
+                });
+
+                if (isTouchingBottom) {
+                    lockDelayAccumulator += deltaTime;
+                    if (lockDelayAccumulator >= LOCK_DELAY_LIMIT) {
+                        lockPiece();
+                    }
+                } else {
+                    lockDelayAccumulator = 0;
+                    dropCounter += deltaTime;
+                    if (dropCounter > dropInterval) {
+                        playerDrop();
+                    }
+                }
+                draw();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateUI() {
+            document.getElementById('scoreVal').innerText = String(score).padStart(6, '0');
+            document.getElementById('levelVal').innerText = level;
+            document.getElementById('linesVal').innerText = lines;
+            document.getElementById('comboVal').innerText = maxCombo;
+        }
+
+        function triggerGameOver() {
+            gameOver = true;
+            audio.playGameOver();
+            
+            const overlay = document.getElementById('overlay');
+            const title = document.getElementById('overlayTitle');
+            const desc = document.getElementById('overlayDesc');
+            const btn = document.getElementById('startPlayBtn');
+
+            title.innerText = "GAME OVER";
+            title.className = "text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-purple-600 orbitron-text tracking-wider";
+            desc.innerHTML = `挑戰結束！<br>最終分數：<span class="text-yellow-400 font-bold orbitron-text">${score}</span> 分<br>最大連消：<span class="text-pink-500 font-bold orbitron-text">${maxCombo}</span> 連擊<br>達到等級：<span class="text-indigo-400 font-bold orbitron-text">${level}</span>`;
+            btn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> PLAY AGAIN`;
+            overlay.classList.remove('pointer-events-none', 'opacity-0');
+        }
+
+        function startNewGame() {
+            grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            score = 0;
+            level = 1;
+            lines = 0;
+            comboCount = 0;
+            maxCombo = 0;
+            dropInterval = 1000;
+            dropCounter = 0;
+            gameOver = false;
+            isPaused = false;
+            gameStarted = true;
+            holdPiece = null;
+            hasHeld = false;
+            particles = [];
+            lockDelayAccumulator = 0;
+            lockResetCount = 0;
+
+            currentPiece = getRandomPiece();
+            nextPiece = getRandomPiece();
+
+            updateUI();
+            drawNext();
+            
+            holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+            document.getElementById('holdEmptyText').style.display = 'block';
+
+            document.getElementById('comboHUD').classList.add('opacity-0', '-translate-y-2');
+            document.getElementById('overlay').classList.add('pointer-events-none', 'opacity-0');
+            
+            audio.init();
+            audio.playLevelUp();
+        }
+
+        // 四季美學與亮暗切換系統
+        function switchThemeAndMode(themeKey, modeChanged = false) {
+            if (themeKey) {
+                currentTheme = THEMES[themeKey];
+            }
+            
+            const selected = currentTheme;
+            const themeHex = selected.themeColorHex;
+            const themeConfig = isLightMode ? selected.light : selected.dark;
+
+            // 1. 背景漸層
+            document.getElementById('gameBody').style.background = themeConfig.bodyBg;
+
+            // 2. CSS 高發光自訂變數
+            document.documentElement.style.setProperty('--theme-color', themeHex);
+            document.documentElement.style.setProperty('--theme-color-glow', selected.borderGlow);
+
+            // 3. 副標題
+            document.getElementById('themeSubtitle').innerText = selected.subtitle;
+
+            // 4. 更新亮暗切換按鈕的外觀與狀態
+            const bodyEl = document.getElementById('gameBody');
+            const headerEl = document.getElementById('gameHeader');
+            const modeToggleBtn = document.getElementById('modeToggleBtn');
+            const modeIcon = document.getElementById('modeIcon');
+            const seasonPanel = document.getElementById('seasonPanel');
+            const holdFrame = document.getElementById('holdFrame');
+            const statsFrame = document.getElementById('statsFrame');
+            const nextFrame = document.getElementById('nextFrame');
+            const controlsFrame = document.getElementById('controlsFrame');
+            const mobileKeyboard = document.getElementById('mobileKeyboard');
+            const resetBtn = document.getElementById('resetBtn');
+            const soundToggleBtn = document.getElementById('soundToggleBtn');
+
+            if (isLightMode) {
+                // 套用亮色風格 DOM Class
+                bodyEl.classList.remove('text-slate-100');
+                bodyEl.classList.add('text-slate-800');
+
+                headerEl.className = "w-full max-w-4xl flex flex-col sm:flex-row justify-between items-center gap-3 py-3 px-4 bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-md mb-2 transition-all";
+                seasonPanel.className = "flex bg-slate-100 rounded-xl p-1 border border-slate-200 gap-1 transition-all";
+                
+                // 亮色控制按鈕樣式
+                const btns = [modeToggleBtn, soundToggleBtn, resetBtn];
+                btns.forEach(b => {
+                    b.className = "p-2 rounded-xl bg-white border border-slate-200 hover:border-slate-400 transition-all text-slate-700";
+                });
+                modeIcon.className = "fa-solid fa-sun text-sm text-amber-500";
+
+                // 面板框
+                const frames = [holdFrame, statsFrame, nextFrame, controlsFrame];
+                frames.forEach(f => {
+                    f.className = f.className.replace(/bg-slate-950\/\d+/g, 'bg-white/95').replace('border-slate-800', 'border-slate-200 shadow-md');
+                });
+                
+                // 預覽黑框
+                document.getElementById('holdContainer').className = "bg-slate-100 rounded-xl p-2 w-24 h-24 flex items-center justify-center border border-slate-200 shadow-inner relative cursor-pointer";
+                document.getElementById('nextContainer').className = "bg-slate-100 rounded-xl p-2 w-24 h-24 flex items-center justify-center border border-slate-200 shadow-inner";
+
+                document.getElementById('scoreVal').className = "text-xl sm:text-2xl font-bold text-slate-800 tracking-widest orbitron-text";
+                document.getElementById('comboVal').className = "text-xl sm:text-2xl font-bold text-slate-800 tracking-widest orbitron-text";
+                document.getElementById('levelVal').className = "text-xl sm:text-2xl font-bold text-slate-800 tracking-widest orbitron-text";
+                document.getElementById('linesVal').className = "text-xl sm:text-2xl font-bold text-slate-800 tracking-widest orbitron-text";
+                document.getElementById('holdHintText').className = "text-[9px] text-slate-400 mt-2 text-center hidden md:block";
+                document.getElementById('controlsHeader').className = "text-xs font-bold text-slate-500 tracking-wider mb-2.5 orbitron-text border-b border-slate-200 pb-1.5 flex items-center gap-1.5";
+                
+                // 鍵盤清單文字
+                const listItems = document.getElementById('controlsList').getElementsByTagName('li');
+                for (let li of listItems) {
+                    li.className = "flex justify-between items-center text-slate-600";
+                }
+
+                // 底部行動按鍵
+                mobileKeyboard.className = "bg-white/70 backdrop-blur-md rounded-2xl p-2.5 border border-slate-200/80 flex flex-col gap-2 shadow-lg transition-all";
+                const touchBtns = mobileKeyboard.getElementsByTagName('button');
+                for (let tb of touchBtns) {
+                    if (tb.id !== 'touchHardDrop') {
+                        tb.className = tb.className.replace('bg-slate-100', 'bg-slate-800/80').replace('bg-slate-800/70', 'bg-slate-100').replace('border-slate-700', 'border-slate-200').replace('text-white', 'text-slate-800').replace('hover:bg-slate-700', 'hover:bg-slate-200');
+                        if (tb.id === 'touchHold' || tb.id === 'touchRotCCW' || tb.id === 'touchRotCW') {
+                            tb.className = tb.className.replace('bg-slate-100', 'bg-slate-100/90');
+                        }
+                    }
+                }
+            } else {
+                // 套用暗色風格 DOM Class
+                bodyEl.classList.remove('text-slate-800');
+                bodyEl.classList.add('text-slate-100');
+
+                headerEl.className = "w-full max-w-4xl flex flex-col sm:flex-row justify-between items-center gap-3 py-3 px-4 bg-slate-950/70 backdrop-blur-md rounded-2xl border border-slate-800/80 shadow-lg mb-2 transition-all";
+                seasonPanel.className = "flex bg-slate-900/90 rounded-xl p-1 border border-slate-800 gap-1 transition-all";
+                
+                const btns = [modeToggleBtn, soundToggleBtn, resetBtn];
+                btns.forEach(b => {
+                    b.className = "p-2 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-400/60 transition-all text-cyan-400";
+                });
+                modeIcon.className = "fa-solid fa-moon text-sm text-cyan-400";
+
+                const frames = [holdFrame, statsFrame, nextFrame, controlsFrame];
+                frames.forEach(f => {
+                    f.className = f.className.replace(/bg-white\/95/g, 'bg-slate-950/90').replace('border-slate-200 shadow-md', 'border-slate-800');
+                    if (f === controlsFrame) {
+                        f.className = f.className.replace('bg-slate-950/90', 'bg-slate-950/80');
+                    }
+                });
+
+                document.getElementById('holdContainer').className = "bg-black/95 rounded-xl p-2 w-24 h-24 flex items-center justify-center border border-gray-900 shadow-inner relative cursor-pointer";
+                document.getElementById('nextContainer').className = "bg-black/95 rounded-xl p-2 w-24 h-24 flex items-center justify-center border border-gray-900 shadow-inner";
+
+                document.getElementById('scoreVal').className = "text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text";
+                document.getElementById('comboVal').className = "text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text";
+                document.getElementById('levelVal').className = "text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text";
+                document.getElementById('linesVal').className = "text-xl sm:text-2xl font-bold text-white tracking-widest orbitron-text";
+                document.getElementById('holdHintText').className = "text-[9px] text-slate-500 mt-2 text-center hidden md:block";
+                document.getElementById('controlsHeader').className = "text-xs font-bold text-slate-400 tracking-wider mb-2.5 orbitron-text border-b border-slate-800 pb-1.5 flex items-center gap-1.5";
+                
+                const listItems = document.getElementById('controlsList').getElementsByTagName('li');
+                for (let li of listItems) {
+                    li.className = "flex justify-between items-center text-slate-300";
+                }
+
+                mobileKeyboard.className = "bg-slate-900/40 backdrop-blur-md rounded-2xl p-2.5 border border-slate-800/80 flex flex-col gap-2 shadow-lg transition-all";
+                const touchBtns = mobileKeyboard.getElementsByTagName('button');
+                for (let tb of touchBtns) {
+                    if (tb.id !== 'touchHardDrop') {
+                        tb.className = tb.className.replace('bg-slate-100', 'bg-slate-800/80').replace('border-slate-200', 'border-slate-700').replace('text-slate-800', 'text-white').replace('hover:bg-slate-200', 'hover:bg-slate-700');
+                        if (tb.id === 'touchHold' || tb.id === 'touchRotCCW' || tb.id === 'touchRotCW') {
+                            tb.className = tb.className.replace('bg-slate-800/80', 'bg-slate-800/70');
+                        }
+                    }
+                }
+            }
+
+            // 直接落下按鈕的專屬高對比切換
+            const touchHardDrop = document.getElementById('touchHardDrop');
+            if (isLightMode) {
+                touchHardDrop.className = "w-full py-3 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-950 rounded-xl border border-cyan-400 shadow-md font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform";
+            } else {
+                touchHardDrop.className = "w-full py-3 bg-cyan-600/30 hover:bg-cyan-600/40 active:bg-cyan-500 text-cyan-300 active:text-slate-950 rounded-xl border border-cyan-500/50 font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform";
+            }
+
+            // 5. 導航按鈕季節亮暗色彩配對樣式
+            const themeKeys = Object.keys(THEMES);
+            themeKeys.forEach(k => {
+                const btn = document.getElementById('btn' + k.charAt(0).toUpperCase() + k.slice(1));
+                if (k === currentTheme.key) {
+                    if (isLightMode) {
+                        btn.className = `px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-slate-300/60 text-slate-900 border border-${k === 'pink' ? 'rose' : k === 'green' ? 'emerald' : k === 'orange' ? 'amber' : 'cyan'}-500/50`;
+                    } else {
+                        btn.className = `px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-white/20 text-white border border-${k === 'pink' ? 'rose' : k === 'green' ? 'emerald' : k === 'orange' ? 'amber' : 'cyan'}-500/40`;
+                    }
+                } else {
+                    btn.className = isLightMode 
+                        ? "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-transparent text-slate-500 hover:text-slate-800"
+                        : "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 bg-transparent text-slate-400 hover:text-white";
+                }
+            });
+
+            // 6. Logo 圖示背景色
+            const logo = document.getElementById('logoBadge');
+            logo.style.background = `linear-gradient(to bottom right, ${themeHex}, #000)`;
+            logo.style.boxShadow = `0 10px 15px -3px ${themeHex}55`;
+
+            const iconClass = selected.key === 'pink' ? 'fa-clover' : selected.key === 'blue' ? 'fa-snowflake' : selected.key === 'green' ? 'fa-tree' : 'fa-leaf';
+            logo.innerHTML = `<i class="fa-solid ${iconClass} text-white text-xl animate-pulse"></i>`;
+
+            document.getElementById('holdBar').style.backgroundColor = themeHex;
+            document.getElementById('nextBar').style.backgroundColor = themeHex;
+            document.getElementById('controlsHeader').querySelector('i').style.color = themeHex;
+            document.getElementById('ctrlSpace').style.color = themeHex;
+
+            // 重新重繪非飄落靜態背景
+            drawBackground();
+
+            draw();
+            drawHold();
+            drawNext();
+        }
+
+        window.addEventListener('keydown', event => {
+            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
+                event.preventDefault();
+            }
+
+            if (!gameStarted || gameOver || isPaused) {
+                if (event.code === 'Space') {
+                    startNewGame();
+                }
+                return;
+            }
+
+            switch (event.code) {
+                case 'ArrowLeft':
+                    playerMove(-1);
+                    break;
+                case 'ArrowRight':
+                    playerMove(1);
+                    break;
+                case 'ArrowDown':
+                    playerDrop();
+                    break;
+                case 'ArrowUp':
+                    playerRotate(1); // 順時針旋轉
+                    break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerRotate(-1); // 逆時針旋轉
+                    break;
+                case 'Space':
+                    playerHardDrop(); // 瞬間下落
+                    break;
+                case 'KeyC':
+                    playerHold(); // 暫存
+                    break;
+            }
+            draw();
+        });
+
+        // 綁定按鈕點擊
+        document.getElementById('startPlayBtn').addEventListener('click', startNewGame);
+        document.getElementById('resetBtn').addEventListener('click', startNewGame);
+        document.getElementById('holdContainer').addEventListener('click', () => {
+            playerHold();
+            draw();
+        });
+
+        // 四個季節主題切換
+        document.getElementById('btnPink').addEventListener('click', () => switchThemeAndMode('pink'));
+        document.getElementById('btnBlue').addEventListener('click', () => switchThemeAndMode('blue'));
+        document.getElementById('btnGreen').addEventListener('click', () => switchThemeAndMode('green'));
+        document.getElementById('btnOrange').addEventListener('click', () => switchThemeAndMode('orange'));
+
+        // 亮色/暗色模式按鈕
+        document.getElementById('modeToggleBtn').addEventListener('click', () => {
+            isLightMode = !isLightMode;
+            switchThemeAndMode(null, true);
+        });
+
+        // 音量按鈕設定
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundIcon = document.getElementById('soundIcon');
+        soundToggleBtn.addEventListener('click', () => {
+            audio.enabled = !audio.enabled;
+            if (audio.enabled) {
+                soundIcon.className = "fa-solid fa-volume-high text-sm";
+                soundToggleBtn.style.color = currentTheme.themeColorHex;
+            } else {
+                soundIcon.className = "fa-solid fa-volume-xmark text-sm";
+                soundToggleBtn.style.color = '#64748b';
+            }
+        });
+
+        // 虛擬按鍵
+        document.getElementById('touchLeft').addEventListener('click', () => { playerMove(-1); draw(); });
+        document.getElementById('touchRight').addEventListener('click', () => { playerMove(1); draw(); });
+        document.getElementById('touchDown').addEventListener('click', () => { playerDrop(); draw(); });
+        document.getElementById('touchRotCW').addEventListener('click', () => { playerRotate(1); draw(); });
+        document.getElementById('touchRotCCW').addEventListener('click', () => { playerRotate(-1); draw(); });
+        document.getElementById('touchHardDrop').addEventListener('click', () => { playerHardDrop(); draw(); });
+        document.getElementById('touchHold').addEventListener('click', () => { playerHold(); draw(); });
+
+        // 啟動預設暗色繡球花主題
+        switchThemeAndMode('blue');
+
+        // 啟動主繪製與主循環
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
